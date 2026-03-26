@@ -127,7 +127,7 @@ fi
 
 # --- openclaw.json (merge defaults, don't overwrite) ---
 
-DEFAULTS=$(cat << 'JSON'
+DEFAULTS=$(cat << JSON
 {
   "agents": {
     "defaults": {
@@ -135,7 +135,10 @@ DEFAULTS=$(cat << 'JSON'
     }
   },
   "gateway": {
-    "mode": "local"
+    "mode": "local",
+    "controlUi": {
+      "allowedOrigins": ["${config.spriteUrl}"]
+    }
   }
 }
 JSON
@@ -288,6 +291,7 @@ app.post("/api/deploy", async (req, res) => {
         googleKey,
         gatewayToken,
         gatewayAuth: gatewayAuth || "password",
+        spriteUrl: sprite.url,
       });
       const output = await exec(name, setupScript);
       // Stream the setup log lines as info
