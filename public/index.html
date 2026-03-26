@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Deploy OpenClaw on Sprites</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { background: #0a0a0a; color: #e5e5e5; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace; }
+    body { min-height: 100vh; display: flex; align-items: flex-start; justify-content: center; padding: 3rem 1rem; }
+    .container { max-width: 540px; width: 100%; }
+    h1 { font-size: 1.5rem; color: #fff; margin-bottom: 0.25rem; }
+    .subtitle { color: #888; font-size: 0.85rem; margin-bottom: 2rem; }
+    .subtitle a { color: #4ade80; text-decoration: none; }
+    .subtitle a:hover { text-decoration: underline; }
+
+    label { display: block; font-size: 0.8rem; color: #aaa; margin-bottom: 0.25rem; margin-top: 1rem; }
+    label:first-of-type { margin-top: 0; }
+    label .req { color: #ef4444; }
+    input, select { width: 100%; padding: 0.55rem 0.75rem; background: #1a1a1a; border: 1px solid #333; border-radius: 6px; color: #fff; font-size: 0.85rem; font-family: inherit; outline: none; transition: border-color 0.15s; }
+    input:focus, select:focus { border-color: #4ade80; }
+    input::placeholder { color: #555; }
+    .hint { font-size: 0.7rem; color: #555; margin-top: 0.2rem; line-height: 1.4; }
+    .hint a { color: #555; }
+    .hint a:hover { color: #888; }
+
+    .section-label { font-size: 0.7rem; color: #555; text-transform: uppercase; letter-spacing: 0.08em; margin-top: 1.5rem; margin-bottom: 0.5rem; border-top: 1px solid #222; padding-top: 1rem; }
+
+    button.deploy { width: 100%; margin-top: 1.75rem; padding: 0.7rem; background: #16a34a; color: #fff; border: none; border-radius: 6px; font-size: 0.9rem; font-weight: 600; font-family: inherit; cursor: pointer; transition: background 0.15s; }
+    button.deploy:hover { background: #15803d; }
+    button.deploy:disabled { background: #333; color: #666; cursor: not-allowed; }
+
+    .progress { margin-top: 1.5rem; display: none; }
+    .progress.active { display: block; }
+    .log { background: #111; border: 1px solid #222; border-radius: 6px; padding: 0.75rem; font-size: 0.78rem; line-height: 1.6; max-height: 300px; overflow-y: auto; }
+    .log-line { display: flex; gap: 0.5rem; }
+    .log-line .icon { flex-shrink: 0; width: 1em; text-align: center; }
+    .log-line.step .icon::before { content: "\25e6"; color: #888; }
+    .log-line.step.running .icon::before { content: "\27f3"; color: #facc15; }
+    .log-line.ok .icon { color: #4ade80; }
+    .log-line.ok .icon::before { content: "\2713"; }
+    .log-line.error .icon { color: #ef4444; }
+    .log-line.error .icon::before { content: "\2717"; }
+    .log-line.info { color: #888; }
+    .log-line.info .icon::before { content: " "; }
+
+    .result { margin-top: 1.5rem; background: #0f2a1a; border: 1px solid #166534; border-radius: 6px; padding: 1rem; display: none; }
+    .result.active { display: block; }
+    .result h2 { font-size: 1rem; color: #4ade80; margin-bottom: 0.75rem; }
+    .result-row { display: flex; justify-content: space-between; align-items: center; padding: 0.4rem 0; font-size: 0.8rem; border-bottom: 1px solid #1a3a2a; gap: 1rem; }
+    .result-row:last-child { border-bottom: none; }
+    .result-row .label { color: #888; white-space: nowrap; }
+    .result-row .value { color: #fff; font-family: monospace; text-align: right; word-break: break-all; }
+    .result-row a { color: #4ade80; text-decoration: none; }
+    .result-row a:hover { text-decoration: underline; }
+    .copy-btn { background: #222; border: 1px solid #444; color: #ccc; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.7rem; cursor: pointer; margin-left: 0.5rem; white-space: nowrap; }
+    .copy-btn:hover { background: #333; }
+
+    .curl-block { margin-top: 1rem; background: #111; border: 1px solid #222; border-radius: 6px; padding: 0.75rem; }
+    .curl-block .curl-label { font-size: 0.7rem; color: #888; margin-bottom: 0.4rem; }
+    .curl-block code { font-size: 0.78rem; color: #4ade80; word-break: break-all; }
+
+    .post-deploy { margin-top: 1rem; font-size: 0.78rem; color: #888; line-height: 1.6; }
+    .post-deploy code { color: #ccc; background: #1a1a1a; padding: 0.1rem 0.3rem; border-radius: 3px; }
+
+    .security-note { font-size: 0.7rem; color: #555; margin-top: 1.5rem; text-align: center; line-height: 1.5; }
+
+    .name-row { display: flex; gap: 0.5rem; align-items: center; }
+    .name-row input { flex: 1; }
+    .name-row button { padding: 0.55rem 0.75rem; background: #222; border: 1px solid #333; border-radius: 6px; color: #aaa; font-size: 0.78rem; cursor: pointer; white-space: nowrap; }
+    .name-row button:hover { background: #333; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Running OpenClaw on Sprites</h1>
+    <p class="subtitle">Provision a new <a href="https://sprites.dev" target="_blank">Sprite</a> running <a href="https://github.com/openclaw/openclaw" target="_blank">OpenClaw</a>.</p>
+
+    <form id="deployForm" autocomplete="off">
+      <label for="apiToken">Sprite API token <span class="req">*</span></label>
+      <input type="password" id="apiToken" placeholder="sprites-..." required>
+      <div class="hint">Create a restricted token at <a href="https://sprites.dev/account" target="_blank">sprites.dev/account</a> — limit to sprites named <code>claw-*</code>, max 1 create</div>
+
+      <label for="spriteName">Sprite name <span class="req">*</span></label>
+      <div class="name-row">
+        <input type="text" id="spriteName" placeholder="claw-deep-hawk">
+        <button type="button" id="randomizeBtn">Randomize</button>
+      </div>
+      <div class="hint">Auto-generated, editable</div>
+
+      <div class="section-label">API Keys</div>
+
+      <label for="anthropicKey">Anthropic API key <span class="req">*</span></label>
+      <input type="password" id="anthropicKey" placeholder="sk-ant-...">
+
+      <label for="openaiKey">OpenAI API key</label>
+      <input type="password" id="openaiKey" placeholder="sk-...">
+
+      <label for="googleKey">Google API key</label>
+      <input type="password" id="googleKey" placeholder="">
+
+      <div class="section-label">Gateway</div>
+
+      <label for="gatewayAuth">Gateway auth mode <span class="req">*</span></label>
+      <select id="gatewayAuth">
+        <option value="password">Password</option>
+        <option value="open">Open (--allow-unconfigured)</option>
+      </select>
+
+      <label for="gatewayCredential">Gateway credential <span class="req">*</span></label>
+      <input type="password" id="gatewayCredential" placeholder="Password">
+      <div class="hint">Used to authenticate gateway connections. Auto-generated if left blank.</div>
+
+      <button type="submit" class="deploy" id="deployBtn">Provision Sprite</button>
+    </form>
+
+    <div class="progress" id="progress">
+      <div class="log" id="log"></div>
+    </div>
+
+    <div class="result" id="result">
+      <h2>OpenClaw is live!</h2>
+      <div id="resultRows"></div>
+      <div class="curl-block" id="curlBlock" style="display:none">
+        <div class="curl-label">Quick setup (curl)</div>
+        <code id="curlCmd"></code>
+        <button class="copy-btn" id="copyCurl" style="margin-top:0.4rem">copy</button>
+      </div>
+      <div class="post-deploy">
+        Visit your Sprite URL to access the OpenClaw control UI.
+        See the <a href="https://github.com/openclaw/openclaw" target="_blank" style="color:#4ade80">OpenClaw docs</a> for full configuration options.
+      </div>
+    </div>
+
+    <p class="security-note">
+      Your tokens are sent to this builder only to provision your sprite.<br>
+      They are never stored. API keys are written to the sprite's <code>.profile</code>.
+    </p>
+  </div>
+
+  <script>
+    const adjectives = ["swift","deep","wild","cold","dark","keen","bold","calm","fast","warm"];
+    const animals = ["hawk","wolf","bear","fox","lynx","crow","owl","elk","ram","jay"];
+
+    function randomName() {
+      const a = adjectives[Math.floor(Math.random() * adjectives.length)];
+      const b = animals[Math.floor(Math.random() * animals.length)];
+      return `claw-${a}-${b}`;
+    }
+
+    const nameInput = document.getElementById("spriteName");
+    nameInput.value = randomName();
+
+    document.getElementById("randomizeBtn").addEventListener("click", () => {
+      nameInput.value = randomName();
+    });
+
+    const form = document.getElementById("deployForm");
+    const btn = document.getElementById("deployBtn");
+    const progressEl = document.getElementById("progress");
+    const logEl = document.getElementById("log");
+    const resultEl = document.getElementById("result");
+    const resultRows = document.getElementById("resultRows");
+
+    function addLog(cls, msg) {
+      const line = document.createElement("div");
+      line.className = `log-line ${cls}`;
+      line.innerHTML = `<span class="icon"></span><span>${esc(msg)}</span>`;
+      logEl.appendChild(line);
+      logEl.scrollTop = logEl.scrollHeight;
+      return line;
+    }
+
+    function esc(s) {
+      const d = document.createElement("div");
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    function copyText(text) {
+      navigator.clipboard.writeText(text).catch(() => {});
+    }
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      btn.disabled = true;
+      btn.textContent = "Provisioning...";
+      progressEl.classList.add("active");
+      resultEl.classList.remove("active");
+      logEl.innerHTML = "";
+
+      let currentStep = null;
+
+      const body = {
+        apiToken: document.getElementById("apiToken").value,
+        spriteName: nameInput.value,
+        anthropicKey: document.getElementById("anthropicKey").value,
+        openaiKey: document.getElementById("openaiKey").value,
+        googleKey: document.getElementById("googleKey").value,
+        gatewayAuth: document.getElementById("gatewayAuth").value,
+        gatewayCredential: document.getElementById("gatewayCredential").value,
+      };
+
+      try {
+        const resp = await fetch("/api/deploy", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({ error: `HTTP ${resp.status}` }));
+          addLog("error", err.error || "Request failed");
+          btn.disabled = false;
+          btn.textContent = "Provision Sprite";
+          return;
+        }
+
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+
+          const lines = buffer.split("\n");
+          buffer = lines.pop();
+
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            const data = JSON.parse(line.slice(6));
+
+            if (data.type === "step") {
+              if (currentStep) currentStep.classList.remove("running");
+              currentStep = addLog("step running", data.message);
+            } else if (data.type === "ok") {
+              if (currentStep) {
+                currentStep.classList.remove("step", "running");
+                currentStep.classList.add("ok");
+                currentStep.querySelector("span:last-child").textContent = data.message;
+              }
+              currentStep = null;
+            } else if (data.type === "info") {
+              addLog("info", data.message);
+            } else if (data.type === "error") {
+              if (currentStep) currentStep.classList.remove("running");
+              addLog("error", data.message);
+              btn.disabled = false;
+              btn.textContent = "Provision Sprite";
+              return;
+            } else if (data.type === "done") {
+              if (currentStep) currentStep.classList.remove("running");
+              showResult(data);
+            }
+          }
+        }
+      } catch (err) {
+        addLog("error", `Network error: ${err.message}`);
+      }
+
+      btn.disabled = false;
+      btn.textContent = "Provision Another";
+    });
+
+    function showResult(data) {
+      resultEl.classList.add("active");
+      resultRows.innerHTML = "";
+
+      const rows = [
+        { label: "Sprite URL", value: data.spriteUrl, link: true },
+        { label: "Gateway URL", value: data.gatewayUrl, copy: true },
+        { label: "Gateway Token", value: data.gatewayToken, copy: true },
+        { label: "Sprite Name", value: data.spriteName },
+      ];
+
+      for (const row of rows) {
+        const el = document.createElement("div");
+        el.className = "result-row";
+        let valueHtml = esc(row.value);
+        if (row.link) valueHtml = `<a href="${esc(row.value)}" target="_blank">${esc(row.value)}</a>`;
+        let extra = "";
+        if (row.copy) extra = `<button class="copy-btn" onclick="copyText('${esc(row.value).replace(/'/g, "\\'")}')">copy</button>`;
+        el.innerHTML = `<span class="label">${esc(row.label)}</span><span class="value">${valueHtml}${extra}</span>`;
+        resultRows.appendChild(el);
+      }
+
+      if (data.curlSetup) {
+        const curlBlock = document.getElementById("curlBlock");
+        const curlCmd = document.getElementById("curlCmd");
+        curlBlock.style.display = "block";
+        curlCmd.textContent = data.curlSetup;
+        document.getElementById("copyCurl").onclick = () => copyText(data.curlSetup);
+      }
+    }
+  </script>
+</body>
+</html>
